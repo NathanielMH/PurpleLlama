@@ -15,6 +15,7 @@ from typing import Callable, List, Optional, Union
 
 import openai
 from CybersecurityBenchmarks.benchmark.cache_handler import CacheHandler
+import requests
 
 from typing_extensions import override
 
