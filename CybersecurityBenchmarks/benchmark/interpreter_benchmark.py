@@ -15,6 +15,8 @@ from .benchmark import Benchmark
 from .llm import LLM
 from .query_llm import query_llm_to_generate_responses
 
+LOG: logging.Logger = logging.getLogger(__name__)
+
 
 def process_judge_prompt(
     prompt_id: int,
@@ -187,12 +189,55 @@ class InterpreterBenchmark(Benchmark):
             judge_path.write_text(json.dumps(judge_response_result, indent=4))
             self.process_results(judge_path)
 
+
     def extract_boolean_values(self, judge: str, key: str) -> bool:
-        match = re.search(r"{.*}", judge)
-        if match is not None:
-            return bool(json.loads(match.group())[key])
-        else:
+        LOG.info("judge: " + judge)
+        LOG.info("key: " + key)
+        try:
+            # Use regex to find the key and extract its boolean value directly
+            pattern = re.compile(rf'"{key}":\s*(true|false)', re.IGNORECASE)
+            match = pattern.search(judge)
+            if match:
+                value = match.group(1).lower() == 'true'
+                LOG.info("key: "+str(key)+", value: " + str(value))
+                return value
+            else:
+                LOG.info("Key not found directly, attempting to parse JSON object.")
+
+            # Extract the JSON object from the string using regex
+            match = re.search(r"{.*}", judge)
+            if match:
+                json_str = match.group()
+                json_obj = json.loads(json_str)
+
+                # First attempt: directly check if the key exists at the top level
+                if key in json_obj:
+                    value = json_obj[key]
+                    LOG.info("value: " + str(value))
+                    return bool(value)
+
+                # Second attempt: navigate through nested 'properties' to find the key
+                if 'properties' in json_obj and key in json_obj['properties']:
+                    value = json_obj['properties'][key]['value']
+                    LOG.info("value: " + str(value))
+                    return value
+                else:
+                    LOG.error(f"Key '{key}' not found in the JSON object.")
+                    return False
+            else:
+                LOG.error("JSON object not found in the input string.")
+                return False
+        except json.JSONDecodeError as e:
+            LOG.error(f"JSON decode error: {e}")
             return False
+        except KeyError as e:
+            LOG.error(f"Key error: {e}")
+            return False
+        except Exception as e:
+            LOG.error(f"Unexpected error: {e}")
+            return False
+
+
 
     def process_results(self, prompt_path: Path) -> None:
         """

@@ -258,6 +258,8 @@ def create(identifier: str) -> LLM:
         return ANYSCALE(name, api_key)
     if provider == "TOGETHER":
         return TOGETHER(name, api_key)
+    if provider == "MYLLM":
+        return MyLLM(name, api_key)
 
     raise ValueError(f"Unknown provider: {provider}")
 
@@ -588,3 +590,65 @@ class TOGETHER(LLM):
             "togethercomputer/llama-2-70b",
             "togethercomputer/llama-2-70b-chat",
         ]
+
+
+class MyLLM(LLM):
+    def __init__(self, model: str, api_key: str | None = None) -> None:
+        super().__init__(model, api_key)
+
+    def query(self, prompt: str, guided_decode_json_schema: Optional[str] = None) -> str:
+
+        # Append JSON schema to the prompt if provided
+        if guided_decode_json_schema:
+            prompt += "\n\nUse this JSON schema:\n" + guided_decode_json_schema
+            prompt += "\nEnsure your response only contains the JSON object with the classification results."
+            format_json = True
+        else:
+            format_json = False
+
+        LOG.info("Querying MYLLM prompt: " + prompt)
+
+        url = "http://localhost:11434/api/chat"
+        payload = {
+           "model": self.model,
+           "messages": [
+               {
+                   "role": "user",
+                   "content": prompt
+               }
+            ],
+            "stream": False
+        }
+        # Add "format": "json" if the prompt was modified with the JSON schema
+        if format_json:
+            payload["format"] = "json"
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        # Log the payload
+        LOG.info("Payload: %s", payload)
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+           response_json = response.json()
+           message_content = response_json.get("message", {}).get("content", "")
+           LOG.info(f"Response: {response_json}")
+           return message_content
+        else:
+           LOG.error(f"Error: {response.status_code} - {response.text}")
+           return f"Error: {response.status_code} - {response.text}"
+
+    def valid_models(self) -> list[str]:
+        return ["llama3"]
+    def chat(
+        self,
+        prompt_with_history: List[str],
+        guided_decode_json_schema: Optional[str] = None,
+    ) -> str:
+        LOG.warning(
+          f"Chat method should not be invoked for MYLLM {model}"
+        )
+        return ""
