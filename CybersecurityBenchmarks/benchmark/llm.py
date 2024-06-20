@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Optional, Union
 
 import openai
-from security.genai.CybersecurityBenchmarks.benchmark.cache_handler import CacheHandler
+from CybersecurityBenchmarks.benchmark.cache_handler import CacheHandler
 
 from typing_extensions import override
 
